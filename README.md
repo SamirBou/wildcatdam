@@ -4,6 +4,7 @@ A simplified simulation of a dam with Modbus process control. Designed to serve
 as a complement to MITRE Caldera for OT.
 
 ![Demo](./assets/demo.gif)
+*Using Caldera to set the doors to manual override, then opening all three doors*
 
 ## Description
 
