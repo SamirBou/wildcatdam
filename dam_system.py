@@ -14,7 +14,8 @@ import tkinter as tk
 import matplotlib.pyplot as plt
 import yaml
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from pymodbus.datastore import ModbusSequentialDataBlock, ModbusServerContext, ModbusSlaveContext
+from pymodbus.datastore import (ModbusSequentialDataBlock, ModbusServerContext,
+                                ModbusSlaveContext)
 from pymodbus.device import ModbusDeviceIdentification
 from pymodbus.server import StartTcpServer
 
@@ -212,7 +213,7 @@ def reduce_water_level(water_level, d1, d2, d3, surge_rate):
 
 
 # --- Graph Updater ---
-def update_graphs(canvas, axes):
+def update_graphs(canvas, axes, window_size=60):
     """
     Update the graphs to reflect the current state of the simulation.
 
@@ -221,6 +222,8 @@ def update_graphs(canvas, axes):
         axes (list): List of matplotlib axes for plotting.
     """
     global cumulative_water_released
+    global water_levels, cumulative_release, door_1_status, door_2_status, door_3_status
+
     while context is None:
         time.sleep(0.5)
 
@@ -242,8 +245,16 @@ def update_graphs(canvas, axes):
             water_levels.append(water_level)
             cumulative_release.append(cumulative_water_released)
 
+            # Trim data to window size
+            water_levels = water_levels[-window_size:]
+            cumulative_release = cumulative_release[-window_size:]
+            door_1_status = door_1_status[-window_size:]
+            door_2_status = door_2_status[-window_size:]
+            door_3_status = door_3_status[-window_size:]
+
             # Plot
             axes[0].clear()
+            axes[0].set_xticklabels([])
             axes[0].plot(water_levels, label="Water Level")
             axes[0].axhline(y=CLOSE_LEVEL, color="grey", linestyle="--", label="Close Level")
             axes[0].axhline(y=THRESHOLD_1, color="green", linestyle="--", label="Threshold 1")
@@ -253,12 +264,14 @@ def update_graphs(canvas, axes):
             axes[0].legend(loc="upper left")
 
             axes[1].clear()
+            axes[1].set_xticklabels([])
             axes[1].plot(door_1_status, label="Door 1")
             axes[1].plot(door_2_status, label="Door 2")
             axes[1].plot(door_3_status, label="Door 3")
             axes[1].legend()
 
             axes[2].clear()
+            axes[2].set_xticklabels([])
             axes[2].plot(cumulative_release, label="Cumulative Released", color="purple")
             axes[2].legend()
 
