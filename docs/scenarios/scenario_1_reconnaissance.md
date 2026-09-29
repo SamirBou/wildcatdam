@@ -6,18 +6,22 @@
 |---|---|
 | **Tactic** | Collection |
 | **Techniques** | [T0802 - Automated Collection](https://attack.mitre.org/techniques/T0802/), [T0861 - Point & Tag Identification](https://attack.mitre.org/techniques/T0861/) |
-| **Target** | Wildcat Dam Modbus TCP server, :5020 |
+| **Target** | Wildcat Dam PLC over Modbus |
 | **Impact** | None - read-only operations only |
 
 ## Objective
 
-Scan the dam controller and enumerate every coil, discrete input, and register
-it exposes, without issuing a single write. Modbus has no authentication, so
-an attacker on the network can build a complete point map of the door
-controls, reduction rates, and thresholds using only standard read function
-codes.
+Read the dam controller's coils, discrete inputs, holding registers, and input
+registers without issuing any write. This gives a baseline point map of the
+door controls, reduction rates, thresholds, water level, and surge exposed by
+the PLC.
 
-## Fact Variables
+## Modbus Variant
+
+Load `docs/sources/wildcat-dam-simulator-facts.yml` as the fact source, then
+build an operation using the Modbus abilities below.
+
+### Fact Variables
 
 | Fact | Description | Type | Default |
 |------|-------------|------|---------|
@@ -32,37 +36,27 @@ codes.
 | `modbus.read_input.start` | First input register address to read | int | `0` |
 | `modbus.read_input.count` | Number of input registers to read | int | `2` |
 
-## Caldera Operation
-
-Load `docs/sources/wildcat_dam_facts.yml` as the fact source, then build an
-operation using the following abilities in order:
+### Caldera Operation
 
 | Step | Ability | Ability ID | Facts Used |
 |------|---------|------------|------------|
-| 1 | Modbus - Read Coils | `d80b9cd5-b1d8-482a-a745-71d74f9d0885` | `modbus.server.ip`, `modbus.server.port`, `modbus.read_coil.start`, `modbus.read_coil.count` |
-| 2 | Modbus - Read Discrete Inputs | `001e21ea-61b5-4b78-b79e-9d5687d819bd` | `modbus.server.ip`, `modbus.server.port`, `modbus.read_discrete.start`, `modbus.read_discrete.count` |
-| 3 | Modbus - Read Holding Registers | `bc8961a2-7534-4b2a-bbc3-2456f58243be` | `modbus.server.ip`, `modbus.server.port`, `modbus.read_holding.start`, `modbus.read_holding.count` |
-| 4 | Modbus - Read Input Registers | `3946b6da-c570-47cd-b63f-c13875297cb4` | `modbus.server.ip`, `modbus.server.port`, `modbus.read_input.start`, `modbus.read_input.count` |
-| 5 | Modbus - Scan Device | `7f43fa44-c2aa-4bb6-ba4b-2c1e58df3b51` | `modbus.server.ip`, `modbus.server.port` |
-
-Scan Device is repeatable and ordered last: under the atomic planner a
-repeatable ability is never marked complete, so placing it before the
-single-shot reads starves them and the operation never reaches step 2.
+| 1 | Modbus - Scan Device | `7f43fa44-c2aa-4bb6-ba4b-2c1e58df3b51` | `modbus.server.ip`, `modbus.server.port` |
+| 2 | Modbus - Read Coils | `d80b9cd5-b1d8-482a-a745-71d74f9d0885` | `modbus.server.ip`, `modbus.server.port`, `modbus.read_coil.start`, `modbus.read_coil.count` |
+| 3 | Modbus - Read Discrete Inputs | `001e21ea-61b5-4b78-b79e-9d5687d819bd` | `modbus.server.ip`, `modbus.server.port`, `modbus.read_discrete.start`, `modbus.read_discrete.count` |
+| 4 | Modbus - Read Holding Registers | `bc8961a2-7534-4b2a-bbc3-2456f58243be` | `modbus.server.ip`, `modbus.server.port`, `modbus.read_holding.start`, `modbus.read_holding.count` |
+| 5 | Modbus - Read Input Registers | `3946b6da-c570-47cd-b63f-c13875297cb4` | `modbus.server.ip`, `modbus.server.port`, `modbus.read_input.start`, `modbus.read_input.count` |
 
 ## Expected Observations
 
-Verified against a live run (docker stack, real Modbus plugin, real agent):
-
-- Step 1: coils 0-5 read back `ON,OFF,OFF,OFF,OFF,OFF` - door_1 open, doors 2-3 closed, all three overrides off (T0861).
-- Step 2: the single discrete input reads `ON` - water is being released (door_1 open).
-- Step 3: holding registers 0-6 read `40,1,3,6,60,75,85` - `close_level`, the three `reduction_rates`, and the three `thresholds`, matching `config.yaml`'s defaults exactly (T0861).
-- Step 4: input registers 0-1 read the live `water_level`/`surge` (`75,3` in this run - water level drifts tick to tick since the sim is running).
-- Step 5: device scan connects with no authentication and enumerates all four register types in one pass (T0802). Being repeatable, it keeps re-running - stop the operation once you've seen one successful scan.
-- No writes occur; the HMI's `/update` values are unaffected by the operation (only the sim's own control loop changes them).
+- Coils 0-5 read back `ON,OFF,OFF,OFF,OFF,OFF` - door 1 open, doors 2-3 closed, all three overrides off.
+- The discrete input reads `ON` - water is being released.
+- Holding registers 0-6 read `40,1,3,6,60,75,85` - `close_level`, the three reduction rates, and the three thresholds, matching the `config.yaml` defaults.
+- Input registers 0-1 read the live water level and surge, which drift tick to tick while the sim runs.
+- Scan Device enumerates all four register types in one pass.
+- No writes occur, so process state changes only from the sim's own control loop.
 
 ## See Also
 
 - [Caldera for OT](https://github.com/mitre/caldera-ot)
-- [Modbus plugin](https://github.com/mitre/modbus)
 - [ATT&CK for ICS - T0802](https://attack.mitre.org/techniques/T0802/)
 - [ATT&CK for ICS - T0861](https://attack.mitre.org/techniques/T0861/)
